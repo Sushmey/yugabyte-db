@@ -193,6 +193,9 @@ public class NodeDetails {
   @ApiModelProperty(value = "Yb controller RPC port")
   public int ybControllerRpcPort = 18018;
 
+  @ApiModelProperty(value = "True if this node is an addon server")
+  public boolean isAddonServer = false;
+
   // True if this node is a Redis server, along with port info.
   @ApiModelProperty(value = "True if this node is a REDIS server")
   public boolean isRedisServer = true;

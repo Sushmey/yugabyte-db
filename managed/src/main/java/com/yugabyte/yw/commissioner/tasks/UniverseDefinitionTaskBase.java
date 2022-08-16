@@ -1504,6 +1504,10 @@ public abstract class UniverseDefinitionTaskBase extends UniverseTaskBase {
     boolean isFallThrough =
         createCreateNodeTasks(
             universe, nodesToBeProvisioned, ignoreNodeStatus, ignoreUseCustomImageConfig);
+
+    // create a list of only isAddon == false nodes
+    // ONLY send those below.
+
     return createConfigureNodeTasks(
         universe, nodesToBeProvisioned, isShellMode, isFallThrough, ignoreUseCustomImageConfig);
   }

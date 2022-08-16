@@ -1,4 +1,4 @@
-package com.yugabyte.yw.common.cdc;
+package com.yugabyte.yw.common.cdc.model;
 
 import java.util.Map;
 

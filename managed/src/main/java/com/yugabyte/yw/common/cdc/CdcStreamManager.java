@@ -1,12 +1,20 @@
 package com.yugabyte.yw.common.cdc;
 
-import com.azure.core.annotation.Get;
 import com.cronutils.utils.VisibleForTesting;
+import com.yugabyte.yw.common.cdc.model.CdcStream;
+import com.yugabyte.yw.common.cdc.model.CdcStreamCreateResponse;
+import com.yugabyte.yw.common.cdc.model.CdcStreamDeleteResponse;
 import com.yugabyte.yw.common.services.YBClientService;
 import com.yugabyte.yw.models.Universe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yb.client.*;
+import org.yb.client.CDCStreamInfo;
+import org.yb.client.CreateCDCStreamResponse;
+import org.yb.client.DeleteCDCStreamResponse;
+import org.yb.client.ListCDCStreamsResponse;
+import org.yb.client.ListTablesResponse;
+import org.yb.client.YBClient;
+import org.yb.client.YBTable;
 import org.yb.master.MasterDdlOuterClass;
 import org.yb.master.MasterReplicationOuterClass;
 
@@ -19,6 +27,7 @@ import java.util.List;
 
 @Singleton
 public class CdcStreamManager {
+
   public static final Logger LOG = LoggerFactory.getLogger(CdcStreamManager.class);
 
   private final YBClientService ybClientService;
@@ -50,13 +59,13 @@ public class CdcStreamManager {
     try (YBClient client = getYBClientForUniverse(universe)) {
       List<CdcStream> streams = new ArrayList<>();
       ListCDCStreamsResponse response =
-          client.listCDCStreams(null, null, MasterReplicationOuterClass.IdTypePB.NAMESPACE_ID);
+        client.listCDCStreams(null, null, MasterReplicationOuterClass.IdTypePB.NAMESPACE_ID);
 
       LOG.info(
-          "Got response for 'listCDCStreams' for universeId='{}': hasError='{}', size='{}'",
-          universe.universeUUID,
-          response.hasError(),
-          response.getStreams() != null ? response.getStreams().size() : -1);
+        "Got response for 'listCDCStreams' for universeId='{}': hasError='{}', size='{}'",
+        universe.universeUUID,
+        response.hasError(),
+        response.getStreams() != null ? response.getStreams().size() : -1);
 
       if (response.hasError()) {
         throw new Exception(response.errorMessage());
@@ -65,7 +74,7 @@ public class CdcStreamManager {
       for (CDCStreamInfo streamInfo : response.getStreams()) {
         HashMap<String, String> options = new HashMap<>(streamInfo.getOptions());
         CdcStream stream =
-            new CdcStream(streamInfo.getStreamId(), options, streamInfo.getNamespaceId());
+          new CdcStream(streamInfo.getStreamId(), options, streamInfo.getNamespaceId());
         streams.add(stream);
       }
 
@@ -80,7 +89,7 @@ public class CdcStreamManager {
     String tid = "";
 
     for (MasterDdlOuterClass.ListTablesResponsePB.TableInfo tableInfo :
-        tablesResp.getTableInfoList()) {
+      tablesResp.getTableInfoList()) {
       LOG.info("Found table: {} - {} ", tableInfo.getNamespace().getName(), tableInfo.getName());
       if (tableInfo.getNamespace().getName().equals(databaseName)) {
         tid = tableInfo.getId().toStringUtf8();
@@ -97,47 +106,47 @@ public class CdcStreamManager {
   }
 
   public CdcStreamCreateResponse createCdcStream(Universe universe, String databaseName)
-      throws Exception {
+    throws Exception {
     return createCdcStream(universe, databaseName, "PROTO", "IMPLICIT");
   }
 
   public CdcStreamCreateResponse createCdcStream(
-      Universe universe, String databaseName, String format, String checkpointType)
-      throws Exception {
+    Universe universe, String databaseName, String format, String checkpointType)
+    throws Exception {
     try (YBClient client = getYBClientForUniverse(universe)) {
 
       LOG.info(
-          "Creating CDC stream for universeId='{}' dbName='{}' format='{}', checkpointType='{}'",
-          universe.universeUUID,
-          databaseName,
-          format,
-          checkpointType);
+        "Creating CDC stream for universeId='{}' dbName='{}' format='{}', checkpointType='{}'",
+        universe.universeUUID,
+        databaseName,
+        format,
+        checkpointType);
 
       YBTable table = getFirstTable(client, databaseName);
 
       CreateCDCStreamResponse response =
-          client.createCDCStream(table, databaseName, format, checkpointType);
+        client.createCDCStream(table, databaseName, format, checkpointType);
 
       CdcStreamCreateResponse result = new CdcStreamCreateResponse(response.getStreamId());
       LOG.info(
-          "Created CDC stream id='{}' for universeId='{}' dbName='{}' format='{}', checkpointType='{}'",
-          result.getStreamId(),
-          universe.universeUUID,
-          databaseName,
-          format,
-          checkpointType);
+        "Created CDC stream id='{}' for universeId='{}' dbName='{}' format='{}', checkpointType='{}'",
+        result.getStreamId(),
+        universe.universeUUID,
+        databaseName,
+        format,
+        checkpointType);
       return result;
     }
   }
 
   public CdcStreamDeleteResponse deleteCdcStream(Universe universe, String streamId)
-      throws Exception {
+    throws Exception {
     try (YBClient client = getYBClientForUniverse(universe)) {
       HashSet<String> streamsToDelete = new HashSet<>();
       streamsToDelete.add(streamId);
 
       DeleteCDCStreamResponse response =
-          client.deleteCDCStream(streamsToDelete, true /*ignoreErrors*/, true /*forceDelete*/);
+        client.deleteCDCStream(streamsToDelete, true /*ignoreErrors*/, true /*forceDelete*/);
 
       if (response.hasError()) {
         throw new Exception(response.errorMessage());
