@@ -175,7 +175,7 @@ public class UniverseControllerTest extends UniverseControllerTestBase {
     assertNotNull(userIntentJson);
     assertThat(userIntentJson.get("replicationFactor").asInt(), allOf(notNullValue(), equalTo(3)));
 
-    JsonNode nodeDetailsMap = universeDetails.get("nodeDetailsSet");
+    JsonNode nodeDetailsMap = universeDetails.get("nodesToProvision");
     assertNotNull(nodeDetailsMap);
     assertNotNull(json.get("resources"));
     for (Iterator<JsonNode> it = nodeDetailsMap.elements(); it.hasNext(); ) {

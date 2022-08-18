@@ -265,6 +265,7 @@ POST    /customers/:cUUID/universes/:uniUUID/cdc_streams                       c
 DELETE  /customers/:cUUID/universes/:uniUUID/cdc_streams/:streamId             com.yugabyte.yw.controllers.UniverseCdcStreamController.deleteCdcStream(cUUID: java.util.UUID, uniUUID: java.util.UUID, streamId: String)
 
 POST    /customers/:cUUID/universes/:uniUUID/addons                            com.yugabyte.yw.controllers.UniverseAddonServicesController.createAddOnService(cUUID: java.util.UUID, uniUUID: java.util.UUID)
+DELETE  /customers/:cUUID/universes/:uniUUID/addons/:addOnName                 com.yugabyte.yw.controllers.UniverseAddonServicesController.removeAddOnService(cUUID: java.util.UUID, uniUUID: java.util.UUID, addOnName: String)
 
 # Universe performance suggestions
 

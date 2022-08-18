@@ -2,10 +2,9 @@ package com.yugabyte.yw.controllers;
 
 import com.google.inject.Inject;
 import com.yugabyte.yw.commissioner.Commissioner;
-import com.yugabyte.yw.forms.AbstractTaskParams;
+import com.yugabyte.yw.common.Util;
 import com.yugabyte.yw.forms.PlatformResults;
 import com.yugabyte.yw.forms.PlatformResults.YBPTask;
-import com.yugabyte.yw.forms.UniverseAddOnTaskParameters;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams;
 import com.yugabyte.yw.forms.UniverseDefinitionTaskParams.Cluster;
 import com.yugabyte.yw.models.Customer;
@@ -20,10 +19,8 @@ import com.yugabyte.yw.models.helpers.PlacementInfo.PlacementCloud;
 import com.yugabyte.yw.models.helpers.PlacementInfo.PlacementRegion;
 import com.yugabyte.yw.models.helpers.TaskType;
 import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiModelProperty;
 import io.swagger.annotations.ApiOperation;
 import java.util.Collections;
-import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +49,14 @@ public class UniverseAddonServicesController extends AuthenticatedController {
     return PlatformResults.withData(response);
   }
 
+  @ApiOperation(value = "Remove Addon Service for a cluster", notes = "Remove Addon Service for a cluster")
+  public Result removeAddOnService(UUID customerUUID, UUID universeUUID, String addOnName) {
+    Universe universe = cloudUtil.checkCloudAndValidateUniverse(customerUUID, universeUUID);
+
+    String response = "";
+    return PlatformResults.withData(response);
+  }
+
   @ApiOperation(value = "Create AddOn Service for a cluster", notes = "Create AddOn Service for a cluster")
   public Result createAddOnService(UUID customerUUID, UUID universeUUID) {
     Universe universe = cloudUtil.checkCloudAndValidateUniverse(customerUUID, universeUUID);
@@ -72,7 +77,7 @@ public class UniverseAddonServicesController extends AuthenticatedController {
     universe.setUniverseDetails(details);
     universe.save();
 
-    UniverseAddOnTaskParameters params = new UniverseAddOnTaskParameters();
+    UniverseDefinitionTaskParams params = new UniverseDefinitionTaskParams();
     params.nodeDetailsSet = Collections.singleton(nodeDetails);
     params.firstTry = true;
     params.universeUUID = universeUUID;
@@ -82,7 +87,7 @@ public class UniverseAddonServicesController extends AuthenticatedController {
     Customer customer = Customer.getOrBadRequest(customerUUID);
 
     CustomerTask.create(customer, universeUUID, taskUUID, TargetType.Universe,
-      CustomerTask.TaskType.UpgradeGflags, universe.name);
+      CustomerTask.TaskType.CreateAddOn, universe.name);
 
     return new YBPTask(taskUUID, universeUUID).asResult();
   }
@@ -127,6 +132,7 @@ public class UniverseAddonServicesController extends AuthenticatedController {
 
     nodeDetails.nodeIdx = (maxNodeIndex + 1);
     nodeDetails.nodeName = generateNodeNameForPurpose(universe, purpose, nodeDetails.nodeIdx);
+    nodeDetails.nodeUuid = Util.generateNodeUUID(universe.universeUUID, nodeDetails.nodeName);
 
     nodeDetails.state = NodeState.ToBeAdded;
     nodeDetails.disksAreMountedByUUID = true;

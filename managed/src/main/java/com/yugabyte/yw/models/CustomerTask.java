@@ -248,7 +248,10 @@ public class CustomerTask extends Model {
     CreateAndRotateAccessKey,
 
     @EnumValue("RunApiTriggeredHooks")
-    RunApiTriggeredHooks;
+    RunApiTriggeredHooks,
+
+    @EnumValue("CreateAddOn")
+    CreateAddOn;
 
     public String toString(boolean completed) {
       switch (this) {

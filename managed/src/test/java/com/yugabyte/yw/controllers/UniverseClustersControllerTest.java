@@ -56,7 +56,7 @@ public class UniverseClustersControllerTest extends UniverseCreateControllerTest
   @Override
   public Result sendCreateRequest(ObjectNode bodyJson) {
     ObjectNode body = bodyJson.deepCopy();
-    body.remove("nodeDetailsSet");
+    body.remove("nodesToProvision");
     body.remove("nodePrefix");
     return doRequestWithAuthTokenAndBody(
         "POST", "/api/customers/" + customer.uuid + "/universes/clusters", authToken, body);

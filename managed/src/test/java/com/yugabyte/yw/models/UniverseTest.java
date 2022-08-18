@@ -606,7 +606,7 @@ public class UniverseTest extends FakeDBApplication {
 
     JsonNode json = Json.toJson(universeResp).get("universeDetails");
 
-    JsonNode nodeDetailsSet = json.get("nodeDetailsSet");
+    JsonNode nodeDetailsSet = json.get("nodesToProvision");
     assertNotNull(nodeDetailsSet);
     assertTrue(nodeDetailsSet.isArray());
     for (int i = 0; i < nodeDetailsSet.size(); i++) {
@@ -649,7 +649,7 @@ public class UniverseTest extends FakeDBApplication {
     UniverseResp universeResp = new UniverseResp(u, null);
     JsonNode json = Json.toJson(universeResp).get("universeDetails");
 
-    JsonNode nodeDetailsSet = json.get("nodeDetailsSet");
+    JsonNode nodeDetailsSet = json.get("nodesToProvision");
     assertNotNull(nodeDetailsSet);
     assertTrue(nodeDetailsSet.isArray());
     assertEquals(

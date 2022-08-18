@@ -98,6 +98,7 @@ public abstract class UniverseDefinitionTaskBase extends UniverseTaskBase {
     YQLSERVER,
     YSQLSERVER,
     REDISSERVER,
+    ADDONSERVER,
     EITHER
   }
 
@@ -202,7 +203,7 @@ public abstract class UniverseDefinitionTaskBase extends UniverseTaskBase {
 
   /**
    * Writes the user intent to the universe. In case of readonly cluster creation we only append
-   * taskParams().nodeDetailsSet to existing universe details.
+   * taskParams().nodesToProvision to existing universe details.
    *
    * @param isReadOnlyCreate only readonly cluster being created info needs persistence.
    */
@@ -1507,9 +1508,13 @@ public abstract class UniverseDefinitionTaskBase extends UniverseTaskBase {
 
     // create a list of only isAddon == false nodes
     // ONLY send those below.
+    Set<NodeDetails> nonAddonNodes =
+        nodesToBeProvisioned.stream()
+            .filter(n -> !n.isAddonServer)
+            .collect(Collectors.toSet());
 
     return createConfigureNodeTasks(
-        universe, nodesToBeProvisioned, isShellMode, isFallThrough, ignoreUseCustomImageConfig);
+        universe, nonAddonNodes, isShellMode, isFallThrough, ignoreUseCustomImageConfig);
   }
 
   /**

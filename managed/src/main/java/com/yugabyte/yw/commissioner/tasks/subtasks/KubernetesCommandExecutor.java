@@ -395,7 +395,7 @@ public class KubernetesCommandExecutor extends UniverseTaskBase {
                     : nodeName;
             nodeDetailsSet.add(nodeDetail);
           }
-          // Remove existing cluster nodes and add nodeDetailsSet
+          // Remove existing cluster nodes and add nodesToProvision
           // Don't remove all as we might delete other cluster nodes.
           universeDetails.nodeDetailsSet.removeAll(defaultNodes);
           universeDetails.nodeDetailsSet.addAll(nodeDetailsSet);

@@ -239,8 +239,8 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
 
     assertOk(result);
     JsonNode json = Json.parse(contentAsString(result));
-    assertTrue(json.get("nodeDetailsSet").isArray());
-    ArrayNode nodeDetailJson = (ArrayNode) json.get("nodeDetailsSet");
+    assertTrue(json.get("nodesToProvision").isArray());
+    ArrayNode nodeDetailJson = (ArrayNode) json.get("nodesToProvision");
     assertEquals(15, nodeDetailJson.size());
     assertTrue(areConfigObjectsEqual(nodeDetailJson, azUUIDToNumNodeMap));
     assertAuditEntry(1, customer.uuid);
@@ -345,8 +345,8 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
     Result result = sendPrimaryEditConfigureRequest(editJson);
     assertOk(result);
     JsonNode json = Json.parse(contentAsString(result));
-    assertTrue(json.get("nodeDetailsSet").isArray());
-    ArrayNode nodeDetailJson = (ArrayNode) json.get("nodeDetailsSet");
+    assertTrue(json.get("nodesToProvision").isArray());
+    ArrayNode nodeDetailJson = (ArrayNode) json.get("nodesToProvision");
     assertEquals(nodeDetailJson.size(), totalNumNodesAfterExpand);
     assertTrue(areConfigObjectsEqual(nodeDetailJson, azUuidToNumNodes));
     assertAuditEntry(1, customer.uuid);
@@ -412,7 +412,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
     clusterJson.set("uuid", Json.toJson(cluster.uuid));
     ArrayNode clustersJsonArray = Json.newArray().add(clusterJson);
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     String url = "/api/customers/" + customer.uuid + "/universes/" + u.universeUUID;
     Result result = doRequestWithAuthTokenAndBody("PUT", url, authToken, bodyJson);
@@ -465,7 +465,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
     clusterJson.set("uuid", Json.toJson(cluster.uuid));
     ArrayNode clustersJsonArray = Json.newArray().add(clusterJson);
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     String url = "/api/customers/" + customer.uuid + "/universes/" + u.universeUUID;
     Result result = doRequestWithAuthTokenAndBody("PUT", url, authToken, bodyJson);
@@ -543,7 +543,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
     clusterJson.set("uuid", Json.toJson(cluster.uuid));
     ArrayNode clustersJsonArray = Json.newArray().add(clusterJson);
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
     bodyJson.put("enableYbc", true);
     bodyJson.put("ybcSoftwareVersion", "");
 
@@ -681,7 +681,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
 
     ObjectNode bodyJson = Json.newObject();
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", nodeDetailsJsonArray);
+    bodyJson.set("nodesToProvision", nodeDetailsJsonArray);
 
     String url = "/api/customers/" + customer.uuid + "/universes/" + u.universeUUID;
     Result result =
@@ -743,7 +743,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
 
     ObjectNode bodyJson = Json.newObject();
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", nodeDetailsJsonArray);
+    bodyJson.set("nodesToProvision", nodeDetailsJsonArray);
 
     String url = "/api/customers/" + customer.uuid + "/universes/" + u.universeUUID;
     Result result =
@@ -800,7 +800,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
 
     ObjectNode bodyJson = Json.newObject();
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", nodeDetailsJsonArray);
+    bodyJson.set("nodesToProvision", nodeDetailsJsonArray);
 
     String url = "/api/customers/" + customer.uuid + "/universes/" + u.universeUUID;
     Result result =
@@ -861,7 +861,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
 
     ObjectNode bodyJson = Json.newObject();
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", nodeDetailsJsonArray);
+    bodyJson.set("nodesToProvision", nodeDetailsJsonArray);
     String url = "/api/customers/" + customer.uuid + "/universes/" + u.universeUUID;
     Result result =
         assertPlatformException(
@@ -922,7 +922,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
 
     ObjectNode bodyJson = Json.newObject();
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", nodeDetailsJsonArray);
+    bodyJson.set("nodesToProvision", nodeDetailsJsonArray);
     String url = "/api/customers/" + customer.uuid + "/universes/" + u.universeUUID;
     Result result =
         assertPlatformException(
@@ -974,7 +974,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
 
     ObjectNode bodyJson = Json.newObject();
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", nodeDetailsJsonArray);
+    bodyJson.set("nodesToProvision", nodeDetailsJsonArray);
 
     String url = "/api/customers/" + customer.uuid + "/universes/" + u.universeUUID;
     Result result =
@@ -1035,7 +1035,7 @@ public class UniverseUiOnlyControllerTest extends UniverseCreateControllerTestBa
 
     ObjectNode bodyJson = Json.newObject();
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", nodeDetailsJsonArray);
+    bodyJson.set("nodesToProvision", nodeDetailsJsonArray);
 
     String url = "/api/customers/" + customer.uuid + "/universes/" + u.universeUUID;
     Result result = doRequestWithAuthTokenAndBody("PUT", url, authToken, bodyJson);

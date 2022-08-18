@@ -461,6 +461,23 @@ public abstract class UniverseTaskBase extends AbstractTaskBase {
     return lockUniverseForUpdate(expectedUniverseVersion, updater);
   }
 
+  /*
+   * Locks the universe for updates by setting the 'updateInProgress' flag. If the universe is
+   * already being modified, then throws an exception.
+   *
+   * @param universeId The universe to lock.
+   * @param expectedUniverseVersion Lock only if the current version of the universe is at this
+   *     version. -1 implies always lock the universe.
+   * @param callback Callback is invoked for any pre-processing to be done on the Universe before it
+   *     is saved in transaction with 'updateInProgress' flag.
+   * @return
+   */
+  public Universe lockUniverseForUpdate(UUID universeId, int expectedUniverseVersion, Consumer<Universe> callback) {
+    UniverseUpdater updater =
+        getLockingUniverseUpdater(expectedUniverseVersion, true, false, false, callback);
+    return lockUniverseForUpdate(universeId, expectedUniverseVersion, updater);
+  }
+
   /**
    * It locks the universe for updates by setting the 'updateInProgress' flag. If the universe is
    * already being modified, then throws an exception.

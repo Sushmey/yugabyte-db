@@ -2409,7 +2409,7 @@ public class PlacementInfoUtil {
   }
 
   /**
-   * Returns a map of pod FQDN to KUBECONFIG string for all pods in the nodeDetailsSet. This method
+   * Returns a map of pod FQDN to KUBECONFIG string for all pods in the nodesToProvision. This method
    * is useful for both new and old naming styles, as we are not using namespace as key.
    *
    * <p>In new naming style, all the AZ deployments are in the same namespace. These AZs can be in
@@ -2758,7 +2758,7 @@ public class PlacementInfoUtil {
     LOG.info("Number of nodes in {}: {}", az.name, placementAZ.numNodesInAZ);
   }
 
-  // Removes a given node from universe nodeDetailsSet
+  // Removes a given node from universe nodesToProvision
   public static void removeNodeByName(String nodeName, Set<NodeDetails> nodeDetailsSet) {
     Iterator<NodeDetails> nodeIter = nodeDetailsSet.iterator();
     while (nodeIter.hasNext()) {

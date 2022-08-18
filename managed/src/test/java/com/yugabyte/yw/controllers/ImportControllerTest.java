@@ -199,7 +199,7 @@ public class ImportControllerTest extends CommissionerBaseTest {
     json = Json.parse(contentAsString(result));
     JsonNode universeDetails = json.get("universeDetails");
     assertNotNull(universeDetails);
-    JsonNode nodeDetailsMap = universeDetails.get("nodeDetailsSet");
+    JsonNode nodeDetailsMap = universeDetails.get("nodesToProvision");
     assertNotNull(nodeDetailsMap);
     int numNodes = 0;
     for (Iterator<JsonNode> it = nodeDetailsMap.elements(); it.hasNext(); ) {

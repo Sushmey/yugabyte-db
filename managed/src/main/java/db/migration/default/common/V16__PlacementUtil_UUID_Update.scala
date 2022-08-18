@@ -32,7 +32,7 @@ class V16__PlacementUtil_UUID_Update extends JdbcMigration {
 
   def addPlacementUuid(primaryClusterUuid: String)(json: JsValue, path: Array[Any]): JsValue = {
     path match {
-      case Array("nodeDetailsSet", _) if !json.as[JsObject].keys.contains("placementUuid") =>
+      case Array("nodesToProvision", _) if !json.as[JsObject].keys.contains("placementUuid") =>
         json.as[JsObject] + ("placementUuid" -> JsString(primaryClusterUuid))
       case _ => json
     }

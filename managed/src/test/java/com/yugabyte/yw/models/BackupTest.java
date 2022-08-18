@@ -305,7 +305,7 @@ public class BackupTest extends FakeDBApplication {
         "{\"errorString\":null,\"deviceInfo\":null,"
             + "\"universeUUID\":\"2ca2d8aa-2879-41b5-8267-4dccc789e841\",\"expectedUniverseVersion\":0,"
             + "\"enableEncryptionAtRest\":false,\"disableEncryptionAtRest\":false,\"cmkArn\":n"
-            + "ull,\"encryptionAtRestConfig\":null,\"nodeDetailsSet\":null,"
+            + "ull,\"encryptionAtRestConfig\":null,\"nodesToProvision\":null,"
             + "\"keyspace\":\"system_redis\",\"tableName\":\"redis\","
             + "\"tableUUID\":\"33268a1e-33e0-4606-90c6-ff9fb7e8c896\",\"sse\":false,"
             + "\"storageConfigUUID\":\"c0432198-df18-40cb-a012-83c89ca63573\","

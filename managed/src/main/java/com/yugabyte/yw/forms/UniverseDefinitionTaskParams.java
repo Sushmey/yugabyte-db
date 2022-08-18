@@ -607,7 +607,7 @@ public class UniverseDefinitionTaskParams extends UniverseTaskParams {
   /**
    * Helper API to remove node from nodeDetailSet
    *
-   * @param nodeName Name of a particular node to remove from the containing nodeDetailsSet.
+   * @param nodeName Name of a particular node to remove from the containing nodesToProvision.
    */
   public void removeNode(String nodeName) {
     if (nodeDetailsSet != null) {

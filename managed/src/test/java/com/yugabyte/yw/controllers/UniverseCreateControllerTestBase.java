@@ -192,7 +192,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
     ObjectNode runtimeFlags = Json.newObject();
     runtimeFlags.put("yb.security.type", "securityType");
     bodyJson.set("runtimeFlags", runtimeFlags);
@@ -253,7 +253,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     Result result = sendCreateRequest(bodyJson);
     assertOk(result);
@@ -304,7 +304,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     Result result = sendCreateRequest(bodyJson);
     assertOk(result);
@@ -356,7 +356,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     String url = "/api/customers/" + customer.uuid + "/universes";
     Result result =
@@ -398,7 +398,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     String url = "/api/customers/" + customer.uuid + "/universes";
     Result result =
@@ -443,7 +443,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     String url = "/api/customers/" + customer.uuid + "/universes";
     Result result =
@@ -491,7 +491,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     String url = "/api/customers/" + customer.uuid + "/universes";
     Result result =
@@ -547,7 +547,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     ObjectNode bodyJson = Json.newObject().put("nodePrefix", "demo-node");
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
     bodyJson.put("rootAndClientRootCASame", rootAndClientRootCASame);
 
     Result result = sendCreateRequest(bodyJson);
@@ -604,7 +604,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     Result result = assertPlatformException(() -> sendCreateRequest(bodyJson));
     assertBadRequest(
@@ -656,7 +656,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     Result result = sendCreateRequest(bodyJson);
     assertOk(result);
@@ -694,7 +694,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     userIntentJson.set("deviceInfo", createValidDeviceInfo(Common.CloudType.aws));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     Result result = sendCreateRequest(bodyJson);
     assertOk(result);
@@ -788,7 +788,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     ArrayNode clustersJsonArray =
         Json.newArray().add(Json.newObject().set("userIntent", userIntentJson));
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", Json.newArray());
+    bodyJson.set("nodesToProvision", Json.newArray());
 
     if (errorMessage == null) {
       Result result = sendCreateRequest(bodyJson);
@@ -842,7 +842,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     nodeDetails.set("cloudInfo", cloudInfo);
     ArrayNode nodeDetailsSet = Json.newArray().add(nodeDetails);
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", nodeDetailsSet);
+    bodyJson.set("nodesToProvision", nodeDetailsSet);
     bodyJson.put("nodePrefix", "demo-node");
 
     // TODO: (Daniel) - Add encryptionAtRestConfig to the payload to actually
@@ -915,7 +915,7 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     nodeDetails.set("cloudInfo", cloudInfo);
     ArrayNode nodeDetailsSet = Json.newArray().add(nodeDetails);
     bodyJson.set("clusters", clustersJsonArray);
-    bodyJson.set("nodeDetailsSet", nodeDetailsSet);
+    bodyJson.set("nodesToProvision", nodeDetailsSet);
     bodyJson.put("nodePrefix", "demo-node");
     bodyJson.put(
         "encryptionAtRestConfig",
@@ -1386,8 +1386,8 @@ public abstract class UniverseCreateControllerTestBase extends UniverseControlle
     assertOk(result);
 
     JsonNode json = getUniverseDetailsJson(result);
-    assertTrue(json.get("nodeDetailsSet").isArray());
-    ArrayNode nodeDetailJson = (ArrayNode) json.get("nodeDetailsSet");
+    assertTrue(json.get("nodesToProvision").isArray());
+    ArrayNode nodeDetailJson = (ArrayNode) json.get("nodesToProvision");
     assertEquals(7, nodeDetailJson.size());
     // Now test the resource endpoint also works.
     // TODO: put this in its own test once we refactor the provider+region+az creation and payload

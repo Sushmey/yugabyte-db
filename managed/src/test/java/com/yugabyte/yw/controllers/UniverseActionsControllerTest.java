@@ -145,7 +145,7 @@ public class UniverseActionsControllerTest extends UniverseControllerTestBase {
     nodeDetails.set("cloudInfo", cloudInfo);
     ArrayNode nodeDetailsSet = Json.newArray().add(nodeDetails);
     createBodyJson.set("clusters", clustersJsonArray);
-    createBodyJson.set("nodeDetailsSet", nodeDetailsSet);
+    createBodyJson.set("nodesToProvision", nodeDetailsSet);
     createBodyJson.put("nodePrefix", "demo-node");
 
     String createUrl = "/api/customers/" + customer.uuid + "/universes";

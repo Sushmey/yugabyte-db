@@ -139,7 +139,7 @@ export const useLaunchUniverse = () => {
             configurePayload.encryptionAtRestConfig.configUUID = formData.securityConfig.kmsConfig;
           }
 
-          // in create mode there's no "nodeDetailsSet" yet, so make a configure call without placements to generate it
+          // in create mode there's no "nodesToProvision" yet, so make a configure call without placements to generate it
           const interimConfigure = await api.universeConfigure(configurePayload);
           patchConfigResponse(interimConfigure, configurePayload as UniverseDetails);
 
@@ -185,7 +185,7 @@ export const useLaunchUniverse = () => {
             const finalPayload = await api.universeConfigure(payload);
             patchConfigResponse(finalPayload, payload);
 
-            // TODO: detect if full move is going to happen by analyzing finalPayload.nodeDetailsSet
+            // TODO: detect if full move is going to happen by analyzing finalPayload.nodesToProvision
             // TODO: maybe consider universe.universeDetails.updateInProgress to avoid edits while it's true
 
             await api.universeEdit(finalPayload, universe.universeUUID);

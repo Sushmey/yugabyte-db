@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 public class UniverseDefinitionTaskParamsResp {
 
   @JsonUnwrapped
-  @JsonIgnoreProperties({"nodeDetailsSet"})
+  @JsonIgnoreProperties({"nodesToProvision"})
   public final UniverseDefinitionTaskParams delegate;
 
   private final Set<NodeDetailsResp> nodeDetailsSet;
