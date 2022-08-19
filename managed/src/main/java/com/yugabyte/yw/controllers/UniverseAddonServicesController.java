@@ -81,6 +81,7 @@ public class UniverseAddonServicesController extends AuthenticatedController {
     params.nodeDetailsSet = Collections.singleton(nodeDetails);
     params.firstTry = true;
     params.universeUUID = universeUUID;
+    params.clusters = details.clusters;
 
     TaskType taskType = TaskType.CreateAddOn;
     UUID taskUUID = commissioner.submit(taskType, params);
@@ -99,7 +100,6 @@ public class UniverseAddonServicesController extends AuthenticatedController {
     // look at createNodeDetailsWithPlacementIndex()
     NodeDetails nodeDetails = new NodeDetails();
     nodeDetails.placementUuid = cluster.uuid;
-    nodeDetails.machineImage = "";
     nodeDetails.ybPrebuiltAmi = false;
 
     int maxNodeIndex = -1;
