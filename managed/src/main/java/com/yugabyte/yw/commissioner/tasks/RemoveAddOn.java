@@ -16,10 +16,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Abortable
 @Retryable
-public class CreateAddOn extends UniverseDefinitionTaskBase {
+public class RemoveAddOn extends UniverseDefinitionTaskBase {
 
   @Inject
-  public CreateAddOn(BaseTaskDependencies baseTaskDependencies) {
+  protected RemoveAddOn(BaseTaskDependencies baseTaskDependencies) {
     super(baseTaskDependencies);
   }
 
@@ -30,18 +30,17 @@ public class CreateAddOn extends UniverseDefinitionTaskBase {
     log.info("Started {} task for uuid={}", getName(), universeUUID);
 
     try {
-      Set<NodeDetails> nodesToProvision = taskParams().nodeDetailsSet.stream()
+      Set<NodeDetails> nodesToRemove = taskParams().nodeDetailsSet.stream()
         .filter(n -> n.state == NodeState.ToBeRemoved && n.isAddonServer)
         .collect(Collectors.toSet());
 
-      log.info("We would need to provision the following nodes: {}",
-        nodesToProvision);
+      log.info("We would need to remove the following nodes: {}", nodesToRemove);
 
       Universe universe = lockUniverseForUpdate(-1 /* always lock */, u -> {
         // do validations here
       });
 
-      createAddOn(universe, nodesToProvision);
+      removeAddOn(universe, nodesToRemove);
 
       // <<<< Maybe not needed?
       // Marks the update of this universe as a success only if all the tasks before it succeeded.
@@ -61,17 +60,15 @@ public class CreateAddOn extends UniverseDefinitionTaskBase {
     }
   }
 
-  protected void createAddOn(Universe universe, Set<NodeDetails> nodesToProvision) {
-    boolean ignoreUseCustomImageConfig = false;
-
-    createProvisionNodeTasks(
-      universe,
-      nodesToProvision,
-      true /* isShell */,
-      false /* ignore node status check */,
-      ignoreUseCustomImageConfig);
-
+  public void removeAddOn(Universe universe, Set<NodeDetails> nodesToRemove) {
+    // Set the node states to Removing.
+    createSetNodeStateTasks(nodesToRemove, NodeDetails.NodeState.Terminating)
+      .setSubTaskGroupType(SubTaskGroupType.RemovingUnusedServers);
+    createDestroyServerTasks(
+      nodesToRemove,
+      true /* isForceDelete */,//TODO: change this or make it configurable
+      true /* deleteNode */,
+      true /* deleteRootVolumes */)
+      .setSubTaskGroupType(SubTaskGroupType.RemovingUnusedServers);
   }
-
-
 }

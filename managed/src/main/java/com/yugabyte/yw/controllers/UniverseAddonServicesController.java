@@ -2,6 +2,7 @@ package com.yugabyte.yw.controllers;
 
 import com.google.inject.Inject;
 import com.yugabyte.yw.commissioner.Commissioner;
+import com.yugabyte.yw.common.PlatformServiceException;
 import com.yugabyte.yw.common.Util;
 import com.yugabyte.yw.forms.PlatformResults;
 import com.yugabyte.yw.forms.PlatformResults.YBPTask;
@@ -53,8 +54,42 @@ public class UniverseAddonServicesController extends AuthenticatedController {
   public Result removeAddOnService(UUID customerUUID, UUID universeUUID, String addOnName) {
     Universe universe = cloudUtil.checkCloudAndValidateUniverse(customerUUID, universeUUID);
 
-    String response = "";
-    return PlatformResults.withData(response);
+    UniverseDefinitionTaskParams details = universe.getUniverseDetails();
+    boolean nodeExists = details.nodeDetailsSet.stream().anyMatch(node -> {
+      if (node.isAddonServer && node.nodeName.equals(addOnName)) {
+        node.isAddonServer = false;
+        return true;
+      }
+      return false;
+    });
+
+    if (!nodeExists) {
+      throw new PlatformServiceException(BAD_REQUEST, "Invalid AddOn name:" + addOnName);
+    }
+
+    for (NodeDetails node : details.nodeDetailsSet) {
+      if (node.isAddonServer && node.nodeName.equals(addOnName)) {
+        node.state = NodeState.ToBeRemoved;
+      }
+    }
+    universe.setUniverseDetails(details);
+    universe.save();
+
+    UniverseDefinitionTaskParams params = new UniverseDefinitionTaskParams();
+    params.nodeDetailsSet = details.nodeDetailsSet;
+    params.firstTry = true;
+    params.universeUUID = universeUUID;
+    params.clusters = details.clusters;
+
+
+    TaskType taskType = TaskType.RemoveAddOn;
+    UUID taskUUID = commissioner.submit(taskType, params);
+    Customer customer = Customer.getOrBadRequest(customerUUID);
+
+    CustomerTask.create(customer, universeUUID, taskUUID, TargetType.Universe,
+      CustomerTask.TaskType.RemoveAddOn, universe.name);
+
+    return new YBPTask(taskUUID, universeUUID).asResult();
   }
 
   @ApiOperation(value = "Create AddOn Service for a cluster", notes = "Create AddOn Service for a cluster")
@@ -62,13 +97,8 @@ public class UniverseAddonServicesController extends AuthenticatedController {
     Universe universe = cloudUtil.checkCloudAndValidateUniverse(customerUUID, universeUUID);
 
     // we need a way to get parameters from the request
-
-    // validations
-    // * VM name?
-    // * node exporter?
-
-
-
+    // purpose
+    // instance type
 
     NodeDetails nodeDetails = generateNodeDetails(universe, "cdc");
 
@@ -78,7 +108,7 @@ public class UniverseAddonServicesController extends AuthenticatedController {
     universe.save();
 
     UniverseDefinitionTaskParams params = new UniverseDefinitionTaskParams();
-    params.nodeDetailsSet = Collections.singleton(nodeDetails);
+    params.nodeDetailsSet = details.nodeDetailsSet;
     params.firstTry = true;
     params.universeUUID = universeUUID;
     params.clusters = details.clusters;

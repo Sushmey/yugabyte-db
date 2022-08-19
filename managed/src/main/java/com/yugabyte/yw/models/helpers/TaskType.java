@@ -138,8 +138,9 @@ public enum TaskType {
 
   CreateSupportBundle("CreateSupportBundle"),
 
+  // AddOn services
   CreateAddOn("CreateAddOn"),
-  //CreateAddOnService("CreateAddOnService"),
+  RemoveAddOn("RemoveAddOn"),
 
   // Tasks belonging to subtasks classpath
   AddAuthorizedKey("subtasks.AddAuthorizedKey"),

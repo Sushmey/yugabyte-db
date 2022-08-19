@@ -251,7 +251,10 @@ public class CustomerTask extends Model {
     RunApiTriggeredHooks,
 
     @EnumValue("CreateAddOn")
-    CreateAddOn;
+    CreateAddOn,
+
+    @EnumValue("RemoveAddOn")
+    RemoveAddOn;
 
     public String toString(boolean completed) {
       switch (this) {
