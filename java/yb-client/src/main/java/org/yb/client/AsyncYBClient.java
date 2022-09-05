@@ -53,11 +53,13 @@ import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.SocketChannelConfig;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.ReadTimeoutHandler;
@@ -80,10 +82,7 @@ import org.yb.master.MasterClientOuterClass;
 import org.yb.master.MasterClientOuterClass.GetTableLocationsResponsePB;
 import org.yb.master.MasterDdlOuterClass;
 import org.yb.master.MasterReplicationOuterClass;
-import org.yb.util.AsyncUtil;
-import org.yb.util.NetUtil;
-import org.yb.util.Pair;
-import org.yb.util.Slice;
+import org.yb.util.*;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -214,18 +213,11 @@ public class AsyncYBClient implements AutoCloseable {
    * an object that may be "wasted" in case another thread wins the insertion
    * race, and we don't want to create unnecessary connections.
    * <p>
-   * Upon disconnection, clients are automatically removed from this map.
-   * We don't use a {@code ChannelGroup} because a {@code ChannelGroup} does
-   * the clean-up on the {@code channelClosed} event, which is actually the
-   * 3rd and last event to be fired when a channel gets disconnected.  The
-   * first one to get fired is, {@code channelDisconnected}.  This matters to
-   * us because we want to purge disconnected clients from the cache as
-   * quickly as possible after the disconnection, to avoid handing out clients
-   * that are going to cause unnecessary errors.
-   * @see TabletClientPipeline#handleDisconnect
+   * Upon disconnection, clients are automatically removed from this map. TabletClient
+   * receives disconnect notitifaction and calls us as listener to clean up cache.
+   * @see AsyncYBClient#handleDisconnect
    */
-  private final HashMap<String, TabletClient> ip2client =
-      new HashMap<String, TabletClient>();
+  private final HashMap<String, TabletClient> ip2client = new HashMap<>();
 
   // Since the masters also go through TabletClient, we need to treat them as if they were a normal
   // table. We'll use the following fake table name to identify places where we need special
@@ -246,8 +238,7 @@ public class AsyncYBClient implements AutoCloseable {
   // A table is considered not served when we get an empty list of locations but know
   // that a tablet exists. This is currently only used for new tables. The objects stored are
   // table IDs.
-  private final Set<String> tablesNotServed = Collections.newSetFromMap(new
-      ConcurrentHashMap<String, Boolean>());
+  private final Set<String> tablesNotServed = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
   /**
    * Semaphore used to rate-limit master lookups
@@ -2312,19 +2303,22 @@ public class AsyncYBClient implements AutoCloseable {
 
   TabletClient newClient(String uuid, final String host, final int port) {
     final String hostport = host + ':' + port;
-    TabletClient client;
+    TabletClient newClient;
     SocketChannel chan;
+    Bootstrap clientBootstrap;
     synchronized (ip2client) {
-      client = ip2client.get(hostport);
-      if (client != null && client.isAlive()) {
-        return client;
+      TabletClient existingClient = ip2client.get(hostport);
+      if (existingClient != null && existingClient.isAlive()) {
+        return existingClient;
       }
-      client = new TabletClient(AsyncYBClient.this, uuid);
-      bootstrap.clone().handler(new ChannelInitializer<SocketChannel>() {
+      newClient = new TabletClient(AsyncYBClient.this, uuid);
+      newClient.setDisconnectListener(this::handleDisconnect);
+      clientBootstrap =
+        bootstrap.clone().handler(new ChannelInitializer<SocketChannel>() {
         @Override
-        protected void initChannel(SocketChannel channel) throws Exception {
+        protected void initChannel(SocketChannel channel) {
           if (certFile != null) {
-            SslHandler sslHandler = createSslHandler(certFile, clientCertFile, clientKeyFile);
+            SslHandler sslHandler = createSslHandler();
             if (sslHandler != null) {
               channel.pipeline().addFirst("ssl", sslHandler);
             }
@@ -2334,18 +2328,21 @@ public class AsyncYBClient implements AutoCloseable {
               new ReadTimeoutHandler(defaultSocketReadTimeoutMs,
                 TimeUnit.MILLISECONDS));
           }
-          channel.pipeline().addLast("yb-handler", client);
+          channel.pipeline().addLast("yb-handler", newClient);
         }
       });
-      ip2client.put(hostport, client);  // This is guaranteed to return null.
+      ip2client.put(hostport, newClient);  // This is guaranteed to return null.
     }
-    this.client2tablets.put(client, new ArrayList<RemoteTablet>());
     if (clientHost != null) {
-      bootstrap.bind(clientHost, clientPort).sync();
-      chan.bind(new InetSocketAddress());
+      try {
+        clientBootstrap.bind(clientHost, clientPort).sync();
+      } catch (InterruptedException e) {
+        throw new RuntimeException("Failed to bind client at " + clientHost + ":" + clientPort);
+      }
     }
-    bootstrap.connect(new InetSocketAddress(host, port));  // Won't block.
-    return client;
+    clientBootstrap.connect(new InetSocketAddress(host, port));
+    this.client2tablets.put(newClient, new ArrayList<RemoteTablet>());
+    return newClient;
   }
 
   /**
@@ -2437,6 +2434,7 @@ public class AsyncYBClient implements AutoCloseable {
       deferreds.add(ts.shutdown());
     }
     final int size = deferreds.size();
+
     return Deferred.group(deferreds).addCallback(
         new Callback<ArrayList<Void>, ArrayList<Void>>() {
           public ArrayList<Void> call(final ArrayList<Void> arg) {
@@ -2585,89 +2583,27 @@ public class AsyncYBClient implements AutoCloseable {
     return MASTER_TABLE_NAME_PLACEHOLDER == tableId;
   }
 
-  private final class TabletClientPipeline extends DefaultChannelPipeline {
+  private void handleDisconnect(TabletClient client, Channel channel) {
+    try {
+      SocketAddress remote = channel.remoteAddress();
+      // At this point Netty gives us no easy way to access the
+      // SocketAddress of the peer we tried to connect to. This
+      // kinda sucks but I couldn't find an easier way.
+      if (remote == null) {
+        remote = slowSearchClientIP(client);
+      }
 
-    private final Logger log = LoggerFactory.getLogger(TabletClientPipeline.class);
-    /**
-     * Have we already disconnected?.
-     * We use this to avoid doing the cleanup work for the same client more
-     * than once, even if we get multiple events indicating that the client
-     * is no longer connected to the TabletServer (e.g. DISCONNECTED, CLOSED).
-     * No synchronization needed as this is always accessed from only one
-     * thread at a time (equivalent to a non-shared state in a Netty handler).
-     */
-    private boolean disconnected = false;
-
-    TabletClient init(String uuid) {
-
+      // Prevent the client from buffering requests while we invalidate
+      // everything we have about it.
+      synchronized (client) {
+        removeClientFromCache(client, remote);
+      }
+    } catch (Exception e) {
+      LOG.error("Uncaught exception when handling a disconnection of " + channel, e);
     }
-
-
-
-    @Override
-    public void sendDownstream(final ChannelEvent event) {
-      if (event instanceof ChannelStateEvent) {
-        handleDisconnect((ChannelStateEvent) event);
-      }
-      super.sendDownstream(event);
-    }
-
-    @Override
-    public void sendUpstream(final ChannelEvent event) {
-      if (event instanceof ChannelStateEvent) {
-        handleDisconnect((ChannelStateEvent) event);
-      }
-      super.sendUpstream(event);
-    }
-
-
-
-    @SuppressWarnings("unchecked")
-
-    private void handleDisconnect(final ChannelStateEvent state_event) {
-      if (disconnected) {
-        return;
-      }
-      switch (state_event.getState()) {
-        case OPEN:
-          if (state_event.getValue() == Boolean.FALSE) {
-            break;  // CLOSED
-          }
-          return;
-        case CONNECTED:
-          if (state_event.getValue() == null) {
-            break;  // DISCONNECTED
-          }
-          return;
-        default:
-          return;  // Not an event we're interested in, ignore it.
-      }
-
-      disconnected = true;  // So we don't clean up the same client twice.
-      try {
-        final TabletClient client = super.get(TabletClient.class);
-        SocketAddress remote = super.channel().remoteAddress();
-        // At this point Netty gives us no easy way to access the
-        // SocketAddress of the peer we tried to connect to. This
-        // kinda sucks but I couldn't find an easier way.
-        if (remote == null) {
-          remote = slowSearchClientIP(client);
-        }
-
-        // Prevent the client from buffering requests while we invalidate
-        // everything we have about it.
-        synchronized (client) {
-          removeClientFromCache(client, remote);
-        }
-      } catch (Exception e) {
-        log.error("Uncaught exception when handling a disconnection of " + channel(), e);
-      }
-    }
-
   }
 
-  private SslHandler createSslHandler(String certfile, String clientCertFile,
-                                      String clientKeyFile) {
+  private SslHandler createSslHandler() {
     try {
       Security.addProvider(new BouncyCastleProvider());
       CertificateFactory cf = CertificateFactory.getInstance("X.509");
@@ -3247,13 +3183,16 @@ public class AsyncYBClient implements AutoCloseable {
      * if they don't, we'll use a simple thread pool.
      */
     private Bootstrap createBootstrap(EventLoopGroup eventLoopGroup) {
-      return new Bootstrap()
+      Bootstrap bootstrap = new Bootstrap()
         .group(eventLoopGroup)
         .channel(NioSocketChannel.class)
         .option(ChannelOption.SO_KEEPALIVE, true)
         .option(ChannelOption.TCP_NODELAY, true)
-        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, TCP_CONNECT_TIMEOUT_MILLIS)
-        .option(EpollChannelOption.TCP_KEEPIDLE, TCP_KEEP_IDLE_VALUE);
+        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, TCP_CONNECT_TIMEOUT_MILLIS);
+      if (SystemUtil.IS_LINUX) {
+        bootstrap.option(EpollChannelOption.TCP_KEEPIDLE, TCP_KEEP_IDLE_VALUE);
+      }
+      return bootstrap;
     }
 
     /**

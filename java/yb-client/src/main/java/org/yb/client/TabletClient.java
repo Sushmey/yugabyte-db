@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 /**
  * Stateful handler that manages a connection to a specific TabletServer.
@@ -140,10 +141,16 @@ public class TabletClient extends ReplayingDecoder<Void> {
 
   private final long socketReadTimeoutMs;
 
+  private BiConsumer<TabletClient, Channel> disconnectListener;
+
   public TabletClient(AsyncYBClient client, String uuid) {
     this.ybClient = client;
     this.uuid = uuid;
     this.socketReadTimeoutMs = client.getDefaultSocketReadTimeoutMs();
+  }
+
+  public void setDisconnectListener(BiConsumer<TabletClient, Channel> disconnectListener) {
+    this.disconnectListener = disconnectListener;
   }
 
   <R> void sendRpc(YRpc<R> rpc) {
@@ -265,14 +272,18 @@ public class TabletClient extends ReplayingDecoder<Void> {
     if (chancopy == null) {
       return Deferred.fromResult(null);
     }
+    final Deferred<Void> d = new Deferred<Void>();
     if (chancopy.isActive()) {
-      chancopy.disconnect();   // ... this is going to set it to null.
-      // At this point, all in-flight RPCs are going to be failed.
+      try {
+        chancopy.disconnect().sync();   // ... this is going to set it to null.
+        // At this point, all in-flight RPCs are going to be failed.
+      } catch (InterruptedException e) {
+        LOG.warn(getPeerUuidLoggingString() + chan + " - failed to disconnect - interrupted");
+      }
     }
     // It's OK to call close() on a Channel if it's already closed.
     final ChannelFuture future = chancopy.close();
     // Now wrap the ChannelFuture in a Deferred.
-    final Deferred<Void> d = new Deferred<Void>();
     // Opportunistically check if it's already completed successfully.
     if (future.isSuccess()) {
       d.callback(null);
@@ -630,6 +641,7 @@ public class TabletClient extends ReplayingDecoder<Void> {
 
   @Override
   public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    disconnectListener.accept(this, ctx.channel());
     chan = null;
     super.channelInactive(ctx);  // Let the ReplayingDecoder cleanup.
     cleanup(ctx.channel());

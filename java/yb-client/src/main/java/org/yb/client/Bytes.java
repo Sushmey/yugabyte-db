@@ -49,16 +49,9 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  * Helper functions to manipulate byte arrays.
@@ -837,26 +830,14 @@ public final class Bytes {
   // this is what allows us to debug unexpected buffers when deserializing RPCs
   // and what's more important than being able to debug unexpected stuff?
   private static final Class<?> ReplayingDecoderBuffer;
-  private static final Field RDB_buffer;  // For Netty 3.5.0 and before.
-  private static final Method RDB_buf;    // For Netty 3.5.1 and above.
+  private static final Field RDB_buffer;
+
   static {
     try {
-      ReplayingDecoderBuffer = Class.forName("org.jboss.netty.handler.codec."
-          + "replay.ReplayingDecoderBuffer");
-      Field field = null;
-      try {
-        field = ReplayingDecoderBuffer.getDeclaredField("buffer");
-        field.setAccessible(true);
-      } catch (NoSuchFieldException e) {
-        // Ignore.  Field has been removed in Netty 3.5.1.
-      }
-      RDB_buffer = field;
-      if (field != null) {  // Netty 3.5.0 or before.
-        RDB_buf = null;
-      } else {
-        RDB_buf = ReplayingDecoderBuffer.getDeclaredMethod("buf");
-        RDB_buf.setAccessible(true);
-      }
+      ReplayingDecoderBuffer = Class.forName("io.netty.handler.codec" +
+        ".ReplayingDecoderByteBuf");
+      RDB_buffer = ReplayingDecoderBuffer.getDeclaredField("buffer");
+      RDB_buffer.setAccessible(true);
     } catch (Exception e) {
       throw new RuntimeException("static initializer failed", e);
     }
@@ -875,8 +856,6 @@ public final class Bytes {
     try {
       if (buf.getClass() != ReplayingDecoderBuffer) {
         array = buf.array();
-      } else if (RDB_buf != null) {  // Netty 3.5.1 and above.
-        array = ((ByteBuf) RDB_buf.invoke(buf)).array();
       } else {  // Netty 3.5.0 and before.
         final ByteBuf wrapped_buf = (ByteBuf) RDB_buffer.get(buf);
         array = wrapped_buf.array();
@@ -885,8 +864,6 @@ public final class Bytes {
       return "(failed to extract content of buffer of type "
           + buf.getClass().getName() + ')';
     } catch (IllegalAccessException e) {
-      throw new AssertionError("Should not happen: " + e);
-    } catch (InvocationTargetException e) {
       throw new AssertionError("Should not happen: " + e);
     }
     return pretty(array);

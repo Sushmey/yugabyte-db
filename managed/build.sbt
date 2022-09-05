@@ -405,7 +405,7 @@ runPlatform := {
   Project.extract(newState).runTask(runPlatformTask, newState)
 }
 
-libraryDependencies += "org.yb" % "yb-client" % "0.8.21-SNAPSHOT"
+libraryDependencies += "org.yb" % "yb-client" % "0.8.23-SNAPSHOT"
 libraryDependencies += "org.yb" % "ybc-client" % "1.0.0-b2"
 
 libraryDependencies ++= Seq(
@@ -431,11 +431,6 @@ dependencyOverrides += "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr3
 dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-databind" % "2.9.10.8"
 
 concurrentRestrictions in Global := Seq(Tags.limitAll(16))
-
-javaOptions in Universal ++= Seq(
-  "-Djdk.tls.client.protocols=TLSv1.2",
-  "-Dhttps.protocols=TLSv1.2"
-)
 
 val testParallelForks = SettingKey[Int]("testParallelForks",
   "Number of parallel forked JVMs, running tests")
