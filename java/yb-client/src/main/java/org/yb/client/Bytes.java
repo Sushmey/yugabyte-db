@@ -40,10 +40,10 @@
 //
 package org.yb.client;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.util.CharsetUtil;
 import org.yb.annotations.InterfaceAudience;
 import org.yb.util.Slice;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.util.CharsetUtil;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -410,7 +410,7 @@ public final class Bytes {
    * @param buf The buffer to read from.
    * @return The integer read.
    */
-  static int readVarInt32(final ChannelBuffer buf) {
+  static int readVarInt32(final ByteBuf buf) {
     int result = buf.readByte();
     if (result >= 0) {
       return result;
@@ -867,7 +867,7 @@ public final class Bytes {
    * @param buf The (possibly {@code null}) buffer to pretty-print.
    * @return The buffer in a pretty-printed string.
    */
-  public static String pretty(final ChannelBuffer buf) {
+  public static String pretty(final ByteBuf buf) {
     if (buf == null) {
       return "null";
     }
@@ -876,9 +876,9 @@ public final class Bytes {
       if (buf.getClass() != ReplayingDecoderBuffer) {
         array = buf.array();
       } else if (RDB_buf != null) {  // Netty 3.5.1 and above.
-        array = ((ChannelBuffer) RDB_buf.invoke(buf)).array();
+        array = ((ByteBuf) RDB_buf.invoke(buf)).array();
       } else {  // Netty 3.5.0 and before.
-        final ChannelBuffer wrapped_buf = (ChannelBuffer) RDB_buffer.get(buf);
+        final ByteBuf wrapped_buf = (ByteBuf) RDB_buffer.get(buf);
         array = wrapped_buf.array();
       }
     } catch (UnsupportedOperationException e) {

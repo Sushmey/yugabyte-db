@@ -31,13 +31,12 @@
 //
 package org.yb.client;
 
-import java.util.List;
-
+import io.netty.buffer.ByteBuf;
 import org.yb.annotations.InterfaceAudience;
 import org.yb.rpc.RpcHeader;
 import org.yb.util.Slice;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import java.util.List;
 
 /**
  * This class handles information received from an RPC response, providing
@@ -45,7 +44,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
  */
 @InterfaceAudience.Private
 final class CallResponse {
-  private final ChannelBuffer buf;
+  private final ByteBuf buf;
   private final RpcHeader.ResponseHeader header;
   private final int totalResponseSize;
 
@@ -61,11 +60,11 @@ final class CallResponse {
    * @param buf Channel buffer which call response reads from.
    * @throws IllegalArgumentException If either the entire recorded packet
    * size or recorded response header PB size are not within reasonable
-   * limits as defined by {@link YRpc#checkArrayLength(ChannelBuffer, long)}.
+   * limits as defined by {@link YRpc#checkArrayLength(ByteBuf, long)}.
    * @throws IndexOutOfBoundsException if the ChannelBuffer does not contain
    * the amount of bytes specified by its length prefix.
    */
-  public CallResponse(final ChannelBuffer buf) {
+  public CallResponse(final ByteBuf buf) {
     this.buf = buf;
 
     this.totalResponseSize = buf.readInt();
@@ -104,7 +103,7 @@ final class CallResponse {
    * protobuf message.
    * @throws IllegalArgumentException If the recorded size for the main message
    * is not within reasonable limits as defined by
-   * {@link YRpc#checkArrayLength(ChannelBuffer, long)}.
+   * {@link YRpc#checkArrayLength(ByteBuf, long)}.
    * @throws IllegalStateException If the offset for the main protobuf message
    * is not valid.
    */
@@ -129,7 +128,7 @@ final class CallResponse {
    * does not exist.
    * @throws IllegalArgumentException If the recorded size for the main message
    * is not within reasonable limits as defined by
-   * {@link YRpc#checkArrayLength(ChannelBuffer, long)}.
+   * {@link YRpc#checkArrayLength(ByteBuf, long)}.
    */
   public Slice getSidecar(int sidecar) {
     cacheMessage();
@@ -168,7 +167,7 @@ final class CallResponse {
 
   // After checking the length, generates a slice for the next 'length'
   // bytes of 'buf'.
-  private static Slice nextBytes(final ChannelBuffer buf, final int length) {
+  private static Slice nextBytes(final ByteBuf buf, final int length) {
     YRpc.checkArrayLength(buf, length);
     byte[] payload;
     int offset;

@@ -41,8 +41,6 @@
 //
 package org.yb.client;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
@@ -53,56 +51,22 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.Message;
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
-import java.io.FileInputStream;
-import java.io.FileReader;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.net.UnknownHostException;
-import java.nio.charset.Charset;
-import java.security.KeyFactory;
-import java.security.KeyStore;
-import java.security.PrivateKey;
-import java.security.Security;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.TrustManagerFactory;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.*;
+import io.netty.channel.epoll.EpollChannelOption;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.SocketChannelConfig;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.timeout.ReadTimeoutHandler;
+import io.netty.util.HashedWheelTimer;
+import io.netty.util.Timeout;
+import io.netty.util.TimerTask;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.DefaultChannelPipeline;
-import org.jboss.netty.channel.socket.ClientSocketChannelFactory;
-import org.jboss.netty.channel.socket.SocketChannel;
-import org.jboss.netty.channel.socket.SocketChannelConfig;
-import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
-import org.jboss.netty.handler.ssl.SslHandler;
-import org.jboss.netty.handler.timeout.ReadTimeoutHandler;
-import org.jboss.netty.util.HashedWheelTimer;
-import org.jboss.netty.util.Timeout;
-import org.jboss.netty.util.TimerTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yb.CommonNet;
@@ -120,6 +84,31 @@ import org.yb.util.AsyncUtil;
 import org.yb.util.NetUtil;
 import org.yb.util.Pair;
 import org.yb.util.Slice;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.TrustManagerFactory;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.net.UnknownHostException;
+import java.nio.charset.Charset;
+import java.security.KeyFactory;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.Security;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.*;
+import java.util.concurrent.*;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * A fully asynchronous and thread-safe client for YB.
@@ -166,12 +155,17 @@ public class AsyncYBClient implements AutoCloseable {
   public static final long DEFAULT_OPERATION_TIMEOUT_MS = 10000;
   public static final long DEFAULT_SOCKET_READ_TIMEOUT_MS = 5000;
 
+  public static final int TCP_CONNECT_TIMEOUT_MILLIS = 5000;
+
+  // Keep connection alive for 1/2 hour - the value is in 1/2 second intervals
+  public static final int TCP_KEEP_IDLE_VALUE = 3600;
   public static final int DEFAULT_MAX_TABLETS = MasterClientOuterClass
       .GetTableLocationsRequestPB
       .getDefaultInstance()
       .getMaxReturnedLocations();
 
-  private final ClientSocketChannelFactory channelFactory;
+  private final Bootstrap bootstrap;
+  private final EventLoopGroup eventLoopGroup;
 
   // TODO(Bharat) - get tablet id from master leader.
   private static final String MASTER_TABLET_ID = "00000000000000000000000000000000";
@@ -284,7 +278,8 @@ public class AsyncYBClient implements AutoCloseable {
   private final int numTabletsInTable;
 
   private AsyncYBClient(AsyncYBClientBuilder b) {
-    this.channelFactory = b.createChannelFactory();
+    this.eventLoopGroup = b.createEventLoopGroup();
+    this.bootstrap = b.createBootstrap(eventLoopGroup);
     this.masterAddresses = b.masterAddresses;
     this.masterTable = new YBTable(this, MASTER_TABLE_NAME_PLACEHOLDER,
         MASTER_TABLE_NAME_PLACEHOLDER, null, null);
@@ -1379,7 +1374,7 @@ public class AsyncYBClient implements AutoCloseable {
     }
 
     @Override
-    ChannelBuffer serialize(Message header) {
+    ByteBuf serialize(Message header) {
       return null;
     }
 
@@ -2324,23 +2319,32 @@ public class AsyncYBClient implements AutoCloseable {
       if (client != null && client.isAlive()) {
         return client;
       }
-      final TabletClientPipeline pipeline = new TabletClientPipeline();
-      client = pipeline.init(uuid);
-      chan = channelFactory.newChannel(pipeline);
+      client = new TabletClient(AsyncYBClient.this, uuid);
+      bootstrap.clone().handler(new ChannelInitializer<SocketChannel>() {
+        @Override
+        protected void initChannel(SocketChannel channel) throws Exception {
+          if (certFile != null) {
+            SslHandler sslHandler = createSslHandler(certFile, clientCertFile, clientKeyFile);
+            if (sslHandler != null) {
+              channel.pipeline().addFirst("ssl", sslHandler);
+            }
+          }
+          if (defaultSocketReadTimeoutMs > 0) {
+            channel.pipeline().addLast("timeout-handler",
+              new ReadTimeoutHandler(defaultSocketReadTimeoutMs,
+                TimeUnit.MILLISECONDS));
+          }
+          channel.pipeline().addLast("yb-handler", client);
+        }
+      });
       ip2client.put(hostport, client);  // This is guaranteed to return null.
     }
     this.client2tablets.put(client, new ArrayList<RemoteTablet>());
-    final SocketChannelConfig config = chan.getConfig();
-    config.setConnectTimeoutMillis(5000);
-    config.setTcpNoDelay(true);
-    // Unfortunately there is no way to override the keep-alive timeout in
-    // Java since the JRE doesn't expose any way to call setsockopt() with
-    // TCP_KEEPIDLE.  And of course the default timeout is >2h. Sigh.
-    config.setKeepAlive(true);
     if (clientHost != null) {
-      chan.bind(new InetSocketAddress(clientHost, clientPort));
+      bootstrap.bind(clientHost, clientPort).sync();
+      chan.bind(new InetSocketAddress());
     }
-    chan.connect(new InetSocketAddress(host, port));  // Won't block.
+    bootstrap.connect(new InetSocketAddress(host, port));  // Won't block.
     return client;
   }
 
@@ -2387,7 +2391,7 @@ public class AsyncYBClient implements AutoCloseable {
       }
       public void run() {
         // This terminates the Executor.
-        channelFactory.releaseExternalResources();
+        eventLoopGroup.shutdownGracefully();
       }
     }
 
@@ -2595,24 +2599,10 @@ public class AsyncYBClient implements AutoCloseable {
     private boolean disconnected = false;
 
     TabletClient init(String uuid) {
-      final TabletClient client = new TabletClient(AsyncYBClient.this, uuid);
-      if (certFile != null) {
-        SslHandler sslHandler = this.createSslHandler(certFile, clientCertFile, clientKeyFile);
-        if (sslHandler != null) {
-          sslHandler.setIssueHandshake(true);
-          super.addFirst("ssl", sslHandler);
-        }
-      }
-      if (defaultSocketReadTimeoutMs > 0) {
-        super.addLast("timeout-handler",
-            new ReadTimeoutHandler(timer,
-                defaultSocketReadTimeoutMs,
-                TimeUnit.MILLISECONDS));
-      }
-      super.addLast("yb-handler", client);
 
-      return client;
     }
+
+
 
     @Override
     public void sendDownstream(final ChannelEvent event) {
@@ -2630,106 +2620,9 @@ public class AsyncYBClient implements AutoCloseable {
       super.sendUpstream(event);
     }
 
-    private PrivateKey getPrivateKey(String keyFile) {
-      try {
-        PemReader pemReader = new PemReader(new FileReader(keyFile));
-        PemObject pemObject = pemReader.readPemObject();
-        pemReader.close();
-        byte[] bytes = pemObject.getContent();
-        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(bytes);
-        KeyFactory kf = KeyFactory.getInstance("RSA");
-        PrivateKey pk = kf.generatePrivate(spec);
-        return pk;
-      } catch (InvalidKeySpecException e) {
-        log.error("Could not read the private key file.", e);
-        throw new RuntimeException("InvalidKeySpecException while reading key: " + keyFile);
-      } catch (Exception e) {
-        log.error("Issue reading pem file.", e);
-        throw new RuntimeException("IOException reading key: " + keyFile);
-      }
-    }
+
 
     @SuppressWarnings("unchecked")
-    private SslHandler createSslHandler(String certfile, String clientCertFile,
-                                        String clientKeyFile) {
-      try {
-        Security.addProvider(new BouncyCastleProvider());
-        CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        FileInputStream fis = new FileInputStream(certFile);
-        List<X509Certificate> cas;
-        try {
-          cas = (List<X509Certificate>) (List<?>) cf.generateCertificates(fis);
-        } catch (Exception e) {
-          log.error("Exception generating CA certificate from input file: ", e);
-          throw e;
-        } finally {
-          fis.close();
-        }
-
-        // Create a KeyStore containing our trusted CAs
-        String keyStoreType = KeyStore.getDefaultType();
-        KeyStore keyStore = KeyStore.getInstance(keyStoreType);
-        keyStore.load(null, null);
-        for (int i = 0; i < cas.size(); i++) {
-          // Adding to the trust store. Expect the caller to have verified
-          // the certs.
-          keyStore.setCertificateEntry("ca_" + i, cas.get(i));
-        }
-
-        // Create a TrustManager that trusts the CAs in our KeyStore
-        String tmfAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance(tmfAlgorithm);
-        tmf.init(keyStore);
-
-        List<X509Certificate> clientCerts = null;
-        KeyStore clientKeyStore = null;
-        KeyManagerFactory kmf = null;
-        if (clientCertFile != null) {
-          if (clientKeyFile == null) {
-            log.error("Both client cert and key needed for mutual auth.");
-            return null;
-          }
-          fis = new FileInputStream(clientCertFile);
-          try {
-            clientCerts = (List<X509Certificate>) (List<?>) cf.generateCertificates(fis);
-          } catch (Exception e) {
-            log.error("Exception generating CA certificate from input file: ", e);
-            throw e;
-          } finally {
-            fis.close();
-          }
-          PrivateKey pk = getPrivateKey(clientKeyFile);
-          Certificate[] chain = new Certificate[clientCerts.size()];
-          clientKeyStore = KeyStore.getInstance(keyStoreType);
-          clientKeyStore.load(null, null);
-          for (int i = 0; i < clientCerts.size(); i++) {
-            chain[i] = clientCerts.get(i);
-            clientKeyStore.setCertificateEntry("node_crt_" + i, clientCerts.get(i));
-          }
-
-          String password = "password";
-          char[] ksPass = password.toCharArray();
-          clientKeyStore.setKeyEntry("node_key", pk, ksPass, chain);
-
-          kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-          kmf.init(clientKeyStore, ksPass);
-        }
-
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-        // mTLS is enabled.
-        if (kmf != null) {
-          sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-        } else {
-          sslContext.init(null, tmf.getTrustManagers(), null);
-        }
-        SSLEngine sslEngine = sslContext.createSSLEngine();
-        sslEngine.setUseClientMode(true);
-        return new SslHandler(sslEngine);
-      } catch (Exception e) {
-        log.error("Exception creating sslContext: ", e);
-        throw new RuntimeException("SSLContext creation failed: " + e.toString());
-      }
-    }
 
     private void handleDisconnect(final ChannelStateEvent state_event) {
       if (disconnected) {
@@ -2753,7 +2646,7 @@ public class AsyncYBClient implements AutoCloseable {
       disconnected = true;  // So we don't clean up the same client twice.
       try {
         final TabletClient client = super.get(TabletClient.class);
-        SocketAddress remote = super.getChannel().getRemoteAddress();
+        SocketAddress remote = super.channel().remoteAddress();
         // At this point Netty gives us no easy way to access the
         // SocketAddress of the peer we tried to connect to. This
         // kinda sucks but I couldn't find an easier way.
@@ -2767,10 +2660,110 @@ public class AsyncYBClient implements AutoCloseable {
           removeClientFromCache(client, remote);
         }
       } catch (Exception e) {
-        log.error("Uncaught exception when handling a disconnection of " + getChannel(), e);
+        log.error("Uncaught exception when handling a disconnection of " + channel(), e);
       }
     }
 
+  }
+
+  private SslHandler createSslHandler(String certfile, String clientCertFile,
+                                      String clientKeyFile) {
+    try {
+      Security.addProvider(new BouncyCastleProvider());
+      CertificateFactory cf = CertificateFactory.getInstance("X.509");
+      FileInputStream fis = new FileInputStream(certFile);
+      List<X509Certificate> cas;
+      try {
+        cas = (List<X509Certificate>) (List<?>) cf.generateCertificates(fis);
+      } catch (Exception e) {
+        LOG.error("Exception generating CA certificate from input file: ", e);
+        throw e;
+      } finally {
+        fis.close();
+      }
+
+      // Create a KeyStore containing our trusted CAs
+      String keyStoreType = KeyStore.getDefaultType();
+      KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+      keyStore.load(null, null);
+      for (int i = 0; i < cas.size(); i++) {
+        // Adding to the trust store. Expect the caller to have verified
+        // the certs.
+        keyStore.setCertificateEntry("ca_" + i, cas.get(i));
+      }
+
+      // Create a TrustManager that trusts the CAs in our KeyStore
+      String tmfAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
+      TrustManagerFactory tmf = TrustManagerFactory.getInstance(tmfAlgorithm);
+      tmf.init(keyStore);
+
+      List<X509Certificate> clientCerts = null;
+      KeyStore clientKeyStore = null;
+      KeyManagerFactory kmf = null;
+      if (clientCertFile != null) {
+        if (clientKeyFile == null) {
+          LOG.error("Both client cert and key needed for mutual auth.");
+          return null;
+        }
+        fis = new FileInputStream(clientCertFile);
+        try {
+          clientCerts = (List<X509Certificate>) (List<?>) cf.generateCertificates(fis);
+        } catch (Exception e) {
+          LOG.error("Exception generating CA certificate from input file: ", e);
+          throw e;
+        } finally {
+          fis.close();
+        }
+        PrivateKey pk = getPrivateKey(clientKeyFile);
+        Certificate[] chain = new Certificate[clientCerts.size()];
+        clientKeyStore = KeyStore.getInstance(keyStoreType);
+        clientKeyStore.load(null, null);
+        for (int i = 0; i < clientCerts.size(); i++) {
+          chain[i] = clientCerts.get(i);
+          clientKeyStore.setCertificateEntry("node_crt_" + i, clientCerts.get(i));
+        }
+
+        String password = "password";
+        char[] ksPass = password.toCharArray();
+        clientKeyStore.setKeyEntry("node_key", pk, ksPass, chain);
+
+        kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        kmf.init(clientKeyStore, ksPass);
+      }
+
+      SSLContext sslContext = SSLContext.getInstance("TLS");
+      // mTLS is enabled.
+      if (kmf != null) {
+        sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+      } else {
+        sslContext.init(null, tmf.getTrustManagers(), null);
+      }
+      SSLEngine sslEngine = sslContext.createSSLEngine();
+      sslEngine.setUseClientMode(true);
+      return new SslHandler(sslEngine);
+    } catch (Exception e) {
+      LOG.error("Exception creating sslContext: ", e);
+      throw new RuntimeException("SSLContext creation failed: " + e.toString());
+    }
+  }
+
+  private PrivateKey getPrivateKey(String keyFile) {
+    try {
+      PemReader pemReader = new PemReader(new FileReader(keyFile));
+      PemObject pemObject = pemReader.readPemObject();
+      pemReader.close();
+      byte[] bytes = pemObject.getContent();
+      PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(bytes);
+      KeyFactory kf = KeyFactory.getInstance("RSA");
+      PrivateKey pk = kf.generatePrivate(spec);
+      return pk;
+    } catch (InvalidKeySpecException e) {
+      LOG.error("Could not read the private key file.", e);
+      throw new RuntimeException("InvalidKeySpecException while reading key: " + keyFile);
+    } catch (Exception e) {
+      LOG.error("Issue reading pem file.", e);
+      throw new RuntimeException("IOException reading key: " + keyFile);
+    }
   }
 
   /**
@@ -3070,8 +3063,7 @@ public class AsyncYBClient implements AutoCloseable {
    */
   public final static class AsyncYBClientBuilder {
     private static final int DEFAULT_MASTER_PORT = 7100;
-    private static final int DEFAULT_BOSS_COUNT = 1;
-    private static final int DEFAULT_WORKER_COUNT = 2 * Runtime.getRuntime().availableProcessors();
+    private static final int DEFAULT_THREAD_COUNT = 2 * Runtime.getRuntime().availableProcessors();
 
     private final List<HostAndPort> masterAddresses;
     private long defaultAdminOperationTimeoutMs = DEFAULT_OPERATION_TIMEOUT_MS;
@@ -3084,10 +3076,8 @@ public class AsyncYBClient implements AutoCloseable {
     private String clientHost = null;
     private int clientPort = 0;
 
-    private Executor bossExecutor;
-    private Executor workerExecutor;
-    private int bossCount = DEFAULT_BOSS_COUNT;
-    private int workerCount = DEFAULT_WORKER_COUNT;
+    private Executor executor;
+    private int threadCount = DEFAULT_THREAD_COUNT;
 
     private int numTablets = DEFAULT_MAX_TABLETS;
 
@@ -3216,20 +3206,8 @@ public class AsyncYBClient implements AutoCloseable {
      * worker count, or netty cannot start enough threads, and client will get stuck.
      * If not sure, please just use CachedThreadPool.
      */
-    public AsyncYBClientBuilder nioExecutors(Executor bossExecutor, Executor workerExecutor) {
-      this.bossExecutor = bossExecutor;
-      this.workerExecutor = workerExecutor;
-      return this;
-    }
-
-    /**
-     * Set the maximum number of boss threads.
-     * Optional.
-     * If not provided, 1 is used.
-     */
-    public AsyncYBClientBuilder bossCount(int bossCount) {
-      Preconditions.checkArgument(bossCount > 0, "bossCount should be greater than 0");
-      this.bossCount = bossCount;
+    public AsyncYBClientBuilder executor(Executor executor) {
+      this.executor = executor;
       return this;
     }
 
@@ -3238,9 +3216,9 @@ public class AsyncYBClient implements AutoCloseable {
      * Optional.
      * If not provided, (2 * the number of available processors) is used.
      */
-    public AsyncYBClientBuilder workerCount(int workerCount) {
-      Preconditions.checkArgument(workerCount > 0, "workerCount should be greater than 0");
-      this.workerCount = workerCount;
+    public AsyncYBClientBuilder threadCount(int threadCount) {
+      Preconditions.checkArgument(threadCount > 0, "threadCount should be greater than 0");
+      this.threadCount = threadCount;
       return this;
     }
 
@@ -3251,23 +3229,31 @@ public class AsyncYBClient implements AutoCloseable {
       return this;
     }
 
+    private EventLoopGroup createEventLoopGroup() {
+      Executor worker = executor;
+      if (worker == null) {
+        worker = Executors.newCachedThreadPool(
+          new ThreadFactoryBuilder()
+            .setNameFormat("yb-nio-%d")
+            .setDaemon(true)
+            .build());
+      }
+
+      return new NioEventLoopGroup(threadCount, worker);
+    }
+
     /**
      * Creates the channel factory for Netty. The user can specify the executors, but
      * if they don't, we'll use a simple thread pool.
      */
-    private NioClientSocketChannelFactory createChannelFactory() {
-      Executor boss = bossExecutor;
-      Executor worker = workerExecutor;
-      if (boss == null || worker == null) {
-        Executor defaultExec = Executors.newCachedThreadPool(
-            new ThreadFactoryBuilder()
-                .setNameFormat("yb-nio-%d")
-                .setDaemon(true)
-                .build());
-        if (boss == null) boss = defaultExec;
-        if (worker == null) worker = defaultExec;
-      }
-      return new NioClientSocketChannelFactory(boss, worker, bossCount, workerCount);
+    private Bootstrap createBootstrap(EventLoopGroup eventLoopGroup) {
+      return new Bootstrap()
+        .group(eventLoopGroup)
+        .channel(NioSocketChannel.class)
+        .option(ChannelOption.SO_KEEPALIVE, true)
+        .option(ChannelOption.TCP_NODELAY, true)
+        .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, TCP_CONNECT_TIMEOUT_MILLIS)
+        .option(EpollChannelOption.TCP_KEEPIDLE, TCP_KEEP_IDLE_VALUE);
     }
 
     /**
