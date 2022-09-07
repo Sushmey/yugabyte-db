@@ -2306,7 +2306,6 @@ public class AsyncYBClient implements AutoCloseable {
   TabletClient newClient(String uuid, final String host, final int port) {
     final String hostport = host + ':' + port;
     TabletClient newClient;
-    SocketChannel chan;
     Bootstrap clientBootstrap;
     synchronized (ip2client) {
       TabletClient existingClient = ip2client.get(hostport);
@@ -2335,14 +2334,13 @@ public class AsyncYBClient implements AutoCloseable {
       });
       ip2client.put(hostport, newClient);  // This is guaranteed to return null.
     }
+    InetSocketAddress remoteAddress = new InetSocketAddress(host, port);
     if (clientHost != null) {
-      try {
-        clientBootstrap.bind(clientHost, clientPort).sync();
-      } catch (InterruptedException e) {
-        throw new RuntimeException("Failed to bind client at " + clientHost + ":" + clientPort);
-      }
+      InetSocketAddress localAddress = new InetSocketAddress(clientHost, clientPort);
+      clientBootstrap.connect(remoteAddress, localAddress);
+    } else {
+      clientBootstrap.connect(remoteAddress);
     }
-    clientBootstrap.connect(new InetSocketAddress(host, port));
     this.client2tablets.put(newClient, new ArrayList<RemoteTablet>());
     return newClient;
   }
