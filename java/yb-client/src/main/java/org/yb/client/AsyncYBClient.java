@@ -2389,6 +2389,7 @@ public class AsyncYBClient implements AutoCloseable {
       public void run() {
         // This terminates the Executor.
         eventLoopGroup.shutdownGracefully();
+        eventLoopGroup.terminationFuture().awaitUninterruptibly();
       }
     }
 
