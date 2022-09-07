@@ -165,6 +165,7 @@ public class AsyncYBClient implements AutoCloseable {
 
   private final Bootstrap bootstrap;
   private final EventLoopGroup eventLoopGroup;
+  private final Executor executor;
 
   // TODO(Bharat) - get tablet id from master leader.
   private static final String MASTER_TABLET_ID = "00000000000000000000000000000000";
@@ -269,7 +270,8 @@ public class AsyncYBClient implements AutoCloseable {
   private final int numTabletsInTable;
 
   private AsyncYBClient(AsyncYBClientBuilder b) {
-    this.eventLoopGroup = b.createEventLoopGroup();
+    this.executor = b.getOrCreateWorker();
+    this.eventLoopGroup = b.createEventLoopGroup(executor);
     this.bootstrap = b.createBootstrap(eventLoopGroup);
     this.masterAddresses = b.masterAddresses;
     this.masterTable = new YBTable(this, MASTER_TABLE_NAME_PLACEHOLDER,
@@ -2389,7 +2391,12 @@ public class AsyncYBClient implements AutoCloseable {
       public void run() {
         // This terminates the Executor.
         eventLoopGroup.shutdownGracefully();
-        eventLoopGroup.terminationFuture().awaitUninterruptibly();
+        try {
+          eventLoopGroup.terminationFuture().sync();
+        } catch (InterruptedException e) {
+          LOG.warn("Failed to wait for graceful shutdown of event loop group");
+        }
+        SystemUtil.shutdownNow(executor);
       }
     }
 
@@ -3166,7 +3173,7 @@ public class AsyncYBClient implements AutoCloseable {
       return this;
     }
 
-    private EventLoopGroup createEventLoopGroup() {
+    private Executor getOrCreateWorker() {
       Executor worker = executor;
       if (worker == null) {
         worker = Executors.newCachedThreadPool(
@@ -3176,6 +3183,10 @@ public class AsyncYBClient implements AutoCloseable {
             .build());
       }
 
+      return worker;
+    }
+
+    private EventLoopGroup createEventLoopGroup(Executor worker) {
       return new NioEventLoopGroup(threadCount, worker);
     }
 
