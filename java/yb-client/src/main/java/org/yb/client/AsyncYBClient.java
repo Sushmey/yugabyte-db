@@ -53,10 +53,7 @@ import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.epoll.EpollChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
@@ -66,6 +63,7 @@ import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
+import io.netty.util.concurrent.FutureListener;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
@@ -2335,12 +2333,18 @@ public class AsyncYBClient implements AutoCloseable {
       ip2client.put(hostport, newClient);  // This is guaranteed to return null.
     }
     InetSocketAddress remoteAddress = new InetSocketAddress(host, port);
+    ChannelFuture channelFuture;
     if (clientHost != null) {
       InetSocketAddress localAddress = new InetSocketAddress(clientHost, clientPort);
-      clientBootstrap.connect(remoteAddress, localAddress);
+      channelFuture = clientBootstrap.connect(remoteAddress, localAddress);
     } else {
-      clientBootstrap.connect(remoteAddress);
+      channelFuture = clientBootstrap.connect(remoteAddress);
     }
+    channelFuture.addListener((FutureListener<Void>) future -> {
+      if (!channelFuture.isSuccess()) {
+        newClient.doCleanup(channelFuture.channel());
+      }
+    });
     this.client2tablets.put(newClient, new ArrayList<RemoteTablet>());
     return newClient;
   }
@@ -2394,7 +2398,7 @@ public class AsyncYBClient implements AutoCloseable {
         } catch (InterruptedException e) {
           LOG.warn("Failed to wait for graceful shutdown of event loop group");
         }
-        SystemUtil.shutdownNow(executor);
+        SystemUtil.forceShutdownExecutor(executor);
       }
     }
 

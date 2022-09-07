@@ -12,7 +12,7 @@ public class SystemUtil {
    * In Netty 4 we don't have this logic - so need to close executors ourselves.
    * Copied over this method from netty 3 as is to make behavior consistent.
    * **/
-  public static void shutdownNow(Executor executor) {
+  public static void forceShutdownExecutor(Executor executor) {
     if (executor instanceof ExecutorService) {
       ExecutorService es = (ExecutorService)executor;
 

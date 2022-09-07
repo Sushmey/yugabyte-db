@@ -641,10 +641,14 @@ public class TabletClient extends ReplayingDecoder<Void> {
 
   @Override
   public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-    disconnectListener.accept(this, ctx.channel());
+    super.channelInactive(ctx);
+    doCleanup(ctx.channel());
+  }
+
+  public void doCleanup(Channel channel) throws Exception {
+    disconnectListener.accept(this, channel);
     chan = null;
-    super.channelInactive(ctx);  // Let the ReplayingDecoder cleanup.
-    cleanup(ctx.channel());
+    cleanup(channel);
   }
 
   /**
