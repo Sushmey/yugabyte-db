@@ -18,13 +18,12 @@ public class SystemUtil {
 
       try {
         es.shutdownNow();
-      } catch (SecurityException var6) {
+      } catch (SecurityException ignore) {
         try {
           es.shutdown();
-        } catch (SecurityException var4) {
-        } catch (NullPointerException var5) {
+        } catch (SecurityException | NullPointerException alsoIgnore) {
         }
-      } catch (NullPointerException var7) {
+      } catch (NullPointerException ignore) {
       }
     }
   }

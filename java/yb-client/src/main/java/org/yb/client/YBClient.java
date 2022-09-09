@@ -1783,6 +1783,15 @@ public class YBClient implements AutoCloseable {
     }
 
     /**
+     * Single thread pool is used in netty4 to handle client IO
+     */
+    @Deprecated
+    @SuppressWarnings("unused")
+    public YBClientBuilder nioExecutors(Executor bossExecutor, Executor workerExecutor) {
+      return executor(workerExecutor);
+    }
+
+    /**
      * Set the executors which will be used for the embedded Netty workers.
      * Optional.
      * If not provided, uses a simple cached threadpool. If either argument is null,
@@ -1797,12 +1806,21 @@ public class YBClient implements AutoCloseable {
     }
 
     /**
+     * Single thread pool is used in netty4 to handle client IO
+     */
+    @Deprecated
+    @SuppressWarnings("unused")
+    public YBClientBuilder bossCount(int workerCount) {
+      return this;
+    }
+
+    /**
      * Set the maximum number of worker threads.
      * Optional.
      * If not provided, (2 * the number of available processors) is used.
      */
-    public YBClientBuilder threadCount(int workerCount) {
-      clientBuilder.threadCount(workerCount);
+    public YBClientBuilder workerCount(int workerCount) {
+      clientBuilder.workerCount(workerCount);
       return this;
     }
 

@@ -155,7 +155,7 @@ public class AsyncYBClient implements AutoCloseable {
   public static final int TCP_CONNECT_TIMEOUT_MILLIS = 5000;
 
   // Keep connection alive for 1/2 hour - the value is in 1/2 second intervals
-  public static final int TCP_KEEP_IDLE_VALUE = 3600;
+  public static final int TCP_KEEP_IDLE_INTERVALS = 3600;
   public static final int DEFAULT_MAX_TABLETS = MasterClientOuterClass
       .GetTableLocationsRequestPB
       .getDefaultInstance()
@@ -3009,7 +3009,7 @@ public class AsyncYBClient implements AutoCloseable {
    */
   public final static class AsyncYBClientBuilder {
     private static final int DEFAULT_MASTER_PORT = 7100;
-    private static final int DEFAULT_THREAD_COUNT = 2 * Runtime.getRuntime().availableProcessors();
+    private static final int DEFAULT_WORKER_COUNT = 2 * Runtime.getRuntime().availableProcessors();
 
     private final List<HostAndPort> masterAddresses;
     private long defaultAdminOperationTimeoutMs = DEFAULT_OPERATION_TIMEOUT_MS;
@@ -3023,7 +3023,7 @@ public class AsyncYBClient implements AutoCloseable {
     private int clientPort = 0;
 
     private Executor executor;
-    private int threadCount = DEFAULT_THREAD_COUNT;
+    private int workerCount = DEFAULT_WORKER_COUNT;
 
     private int numTablets = DEFAULT_MAX_TABLETS;
 
@@ -3143,6 +3143,16 @@ public class AsyncYBClient implements AutoCloseable {
       return this;
     }
 
+
+    /**
+     * Single thread pool is used in netty4 to handle client IO
+     */
+    @Deprecated
+    @SuppressWarnings("unused")
+    public AsyncYBClientBuilder nioExecutors(Executor bossExecutor, Executor workerExecutor) {
+      return executor(workerExecutor);
+    }
+
     /**
      * Set the executors which will be used for the embedded Netty boss and workers.
      * Optional.
@@ -3158,13 +3168,22 @@ public class AsyncYBClient implements AutoCloseable {
     }
 
     /**
+     * Single thread pool is used in netty4 to handle client IO
+     */
+    @Deprecated
+    @SuppressWarnings("unused")
+    public AsyncYBClientBuilder bossCount(int bossCount) {
+      return this;
+    }
+
+    /**
      * Set the maximum number of worker threads.
      * Optional.
      * If not provided, (2 * the number of available processors) is used.
      */
-    public AsyncYBClientBuilder threadCount(int threadCount) {
-      Preconditions.checkArgument(threadCount > 0, "threadCount should be greater than 0");
-      this.threadCount = threadCount;
+    public AsyncYBClientBuilder workerCount(int workerCount) {
+      Preconditions.checkArgument(workerCount > 0, "workerCount should be greater than 0");
+      this.workerCount = workerCount;
       return this;
     }
 
@@ -3189,7 +3208,7 @@ public class AsyncYBClient implements AutoCloseable {
     }
 
     private EventLoopGroup createEventLoopGroup(Executor worker) {
-      return new NioEventLoopGroup(threadCount, worker);
+      return new NioEventLoopGroup(workerCount, worker);
     }
 
     /**
@@ -3204,7 +3223,8 @@ public class AsyncYBClient implements AutoCloseable {
         .option(ChannelOption.TCP_NODELAY, true)
         .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, TCP_CONNECT_TIMEOUT_MILLIS);
       if (SystemUtil.IS_LINUX) {
-        bootstrap.option(EpollChannelOption.TCP_KEEPIDLE, TCP_KEEP_IDLE_VALUE);
+        // No support for TCP_KEEPIDLE on MacOs
+        bootstrap.option(EpollChannelOption.TCP_KEEPIDLE, TCP_KEEP_IDLE_INTERVALS);
       }
       return bootstrap;
     }

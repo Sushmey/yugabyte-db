@@ -92,7 +92,6 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-handler</artifactId>
-        <version>4.1.68.Final</version>
       </dependency>
     <dependency>
       <groupId>commons-io</groupId>

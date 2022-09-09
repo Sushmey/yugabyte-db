@@ -833,9 +833,21 @@ public final class Bytes {
   private static final Field RDB_buffer;
 
   static {
+    Class<?> replayingDecoderBufferClass;
     try {
-      ReplayingDecoderBuffer = Class.forName("io.netty.handler.codec" +
+      replayingDecoderBufferClass = Class.forName("io.netty.handler.codec" +
         ".ReplayingDecoderByteBuf");
+    } catch (ClassNotFoundException e) {
+      try {
+        // Class was called ReplayingDecoderBuffer in netty versions prior to 4.0.28.Final
+        replayingDecoderBufferClass = Class.forName("io.netty.handler.codec" +
+          ".ReplayingDecoderBuffer");
+      } catch (ClassNotFoundException e1) {
+        throw new RuntimeException("static initializer failed", e1);
+      }
+    }
+    try {
+      ReplayingDecoderBuffer = replayingDecoderBufferClass;
       RDB_buffer = ReplayingDecoderBuffer.getDeclaredField("buffer");
       RDB_buffer.setAccessible(true);
     } catch (Exception e) {
